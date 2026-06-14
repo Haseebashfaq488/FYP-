@@ -1,10 +1,12 @@
 import pandas as pd
 import numpy as np
+import glob
 
 # ==========================
 # Load Dataset
 # ==========================
-file_path = "BTCUSDT-1h-2023-01.csv"
+all_files = glob.glob("BTCUSDT-1h-*.csv")
+all_files.sort()
 
 columns = [
     "Open Time",
@@ -21,12 +23,24 @@ columns = [
     "Ignore"
 ]
 
-df = pd.read_csv(file_path, header=None)
-df.columns = columns
+df_list = []
+for file in all_files:
+    temp_df = pd.read_csv(file, header=None)
+    temp_df.columns = columns
+    df_list.append(temp_df)
+
+df = pd.concat(df_list, ignore_index=True)
 
 # ==========================
 # Convert Official Binance UTC Timestamps
 # ==========================
+# 2025 onwards uses microseconds (16 digits) instead of milliseconds (13 digits), so normalize to ms
+df["Open Time"] = np.where(df["Open Time"] > 1e14, df["Open Time"] / 1000, df["Open Time"])
+df["Close Time"] = np.where(df["Close Time"] > 1e14, df["Close Time"] / 1000, df["Close Time"])
+
+df.sort_values("Open Time", inplace=True)
+df.reset_index(drop=True, inplace=True)
+
 df["Open Time"] = pd.to_datetime(df["Open Time"], unit="ms", utc=True)
 df["Close Time"] = pd.to_datetime(df["Close Time"], unit="ms", utc=True)
 
@@ -157,15 +171,21 @@ df["Target_Close"] = df["Close"].shift(-1)
 df.dropna(inplace=True)
 
 # ==========================
+# Remove Timezone before saving
+# ==========================
+df["Open Time"] = df["Open Time"].dt.tz_localize(None)
+df["Close Time"] = df["Close Time"].dt.tz_localize(None)
+
+# ==========================
 # Save Final Dataset
 # ==========================
 df.to_csv(
-    "BTCUSDT_Enriched.csv",
+    "Final_Merged_BTCUSDT_Enriched.csv",
     index=False
 )
 
 df.to_excel(
-    "BTCUSDT_Enriched.xlsx",
+    "Final_Merged_BTCUSDT_Enriched.xlsx",
     index=False
 )
 
